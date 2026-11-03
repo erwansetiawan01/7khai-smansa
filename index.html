@@ -1,583 +1,474 @@
-/**
- * 🛠️ Dashboard Control 7KAIH SMAN 1 Bogor
- * Logic Full-Stack Client: Supabase Realtime, CRUD, Chart.js, & PDF Printing
- */
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard 7KAIH - SMAN 1 Bogor</title>
+    
+    <!-- CDN Tailwind CSS (Penataan Tampilan UI) -->
+    <script src="[suspicious link removed]"></script>
+    <!-- CDN Chart.js (Grafik Analitik) -->
+    <script src="[suspicious link removed]"></script>
+    <!-- CDN Supabase JS SDK (Integrasi Database & Realtime) -->
+    <script src="[suspicious link removed]"></script>
 
-// Kredensial Supabase Project Anda (Ganti dengan Key Anda)
-const SUPABASE_URL = 'https://udgxelmebjzzwlumnbox.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkZ3hlbG1lYmp6endsdW1uYm94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NDIwMTksImV4cCI6MjEwOTAxODAxOX0.Q6m0XquxaKNhMlz7Ef03xHzu5Sbq3yE8WphpwZmVnhA';
-
-// Inisialisasi SDK Supabase dengan Proteksi Browser
-const supabaseClient = (typeof window !== 'undefined' && window.supabase) 
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
-    : null;
-
-// Global Chart Instances
-let habitsChartInstance = null;
-let categoryChartInstance = null;
-let adminChartInstance = null;
-
-// Inisialisasi Aplikasi Saat DOM Siap
-if (typeof document !== 'undefined') {
-    document.addEventListener('DOMContentLoaded', () => {
-        const today = new Date().toISOString().split('T')[0];
-        if (document.getElementById('add_entry_date')) document.getElementById('add_entry_date').value = today;
-        if (document.getElementById('student_input_date')) document.getElementById('student_input_date').value = today;
-
-        // Muat Komponen Utama
-        loadHabitsTable();
-        initCharts();
-        fetchRealtimeClassData();
-
-        // Jalankan Langganan Realtime WebSocket
-        subscribeToSupabaseRealtime();
-    });
-}
-
-/**
- * ========================================================
- * 1. ROLE SWITCHER & EXECUTIVE DASHBOARD LOAD
- * ========================================================
- */
-function changeRoleView(role) {
-    const siswaEl = document.getElementById('roleSiswa');
-    const ortuEl = document.getElementById('roleOrangTua');
-    const waliEl = document.getElementById('roleWaliKelas');
-    const adminEl = document.getElementById('roleAdmin');
-
-    if (siswaEl) siswaEl.classList.add('hidden');
-    if (ortuEl) ortuEl.classList.add('hidden');
-    if (waliEl) waliEl.classList.add('hidden');
-    if (adminEl) adminEl.classList.add('hidden');
-
-    if (role === 'siswa' && siswaEl) siswaEl.classList.remove('hidden');
-    if (role === 'orang_tua' && ortuEl) ortuEl.classList.remove('hidden');
-    if (role === 'wali_kelas' && waliEl) waliEl.classList.remove('hidden');
-    if (role === 'admin' && adminEl) {
-        adminEl.classList.remove('hidden');
-        loadAdminExecutiveData(); // Memuat statistik khusus Executive Admin
-    }
-}
-
-/**
- * ========================================================
- * 2. LOAD TABEL DATA & ASESMEN OTOMATIS (ST/MT/BT)
- * ========================================================
- */
-async function loadHabitsTable() {
-    const tbody = document.getElementById('habitsTableBody');
-    if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">Memuat data Supabase...</td></tr>`;
-
-    try {
-        if (!supabaseClient) return;
-        const { data, error } = await supabaseClient
-            .from('daily_habits')
-            .select(`
-                id, entry_date, 
-                bangun_pagi, beribadah, berolahraga, makan_sehat, gemar_belajar, bermasyarakat, tidur_cepat,
-                screen_time_hours, validated_by_parent, validated_by_teacher,
-                profiles ( full_name, classes ( class_name ) )
-            `)
-            .order('entry_date', { ascending: false })
-            .limit(50);
-
-        if (error) throw error;
-        if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">Belum ada data log kebiasaan.</td></tr>`;
-            return;
+    <style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
         }
 
-        tbody.innerHTML = data.map(item => {
-            const habits = [
-                item.bangun_pagi, 
-                item.beribadah, 
-                item.berolahraga, 
-                item.makan_sehat, 
-                item.gemar_belajar, 
-                item.bermasyarakat, 
-                item.tidur_cepat
-            ];
-            const completedCount = habits.filter(Boolean).length;
-            const percentage = Math.round((completedCount / 7) * 100);
-
-            let categoryBadge = '';
-            if (percentage > 70) {
-                categoryBadge = `<span class="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded font-bold text-[10px]">ST (${percentage}%)</span>`;
-            } else if (percentage >= 50) {
-                categoryBadge = `<span class="bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded font-bold text-[10px]">MT (${percentage}%)</span>`;
-            } else {
-                categoryBadge = `<span class="bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded font-bold text-[10px]">BT (${percentage}%)</span>`;
+        /* Aturan Khusus Format Cetak PDF */
+        @media print {
+            body * {
+                visibility: hidden;
             }
-
-            const studentName = item.profiles?.full_name || 'Ahmad Fauzi';
-            const className = item.profiles?.classes?.class_name || 'X-1';
-
-            return `
-                <tr class="hover:bg-slate-50 border-b transition">
-                    <td class="p-3 font-medium text-slate-700">${item.entry_date}</td>
-                    <td class="p-3">
-                        <span class="font-bold text-slate-900 block">${studentName}</span>
-                        <span class="text-[10px] text-slate-400 font-semibold">${className}</span>
-                    </td>
-                    <td class="p-3 text-center">
-                        <div class="font-bold text-slate-800">${completedCount} / 7 Kebiasaan</div>
-                        <div class="w-full bg-slate-200 rounded-full h-1.5 mt-1 overflow-hidden">
-                            <div class="bg-indigo-600 h-1.5 rounded-full" style="width: ${percentage}%"></div>
-                        </div>
-                    </td>
-                    <td class="p-3 text-center">${categoryBadge}</td>
-                    <td class="p-3 text-center">
-                        ${item.validated_by_parent ? '<span class="text-emerald-600 font-bold">✅ Valid</span>' : '<span class="text-slate-400 font-medium">⏳ Belum</span>'}
-                    </td>
-                    <td class="p-3 text-center space-x-1">
-                        <button onclick='openEditModal(${JSON.stringify(item)})' class="bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded font-semibold text-[11px] shadow-sm">✏️ Edit</button>
-                        <button onclick="openDeleteModal('${item.id}')" class="bg-rose-500 hover:bg-rose-600 text-white px-2.5 py-1 rounded font-semibold text-[11px] shadow-sm">🗑️ Hapus</button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-
-    } catch (err) {
-        console.error("Gagal memuat data:", err.message);
-        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-rose-500">Gagal memuat data: ${err.message}</td></tr>`;
-    }
-}
-
-/**
- * ========================================================
- * 3. LOGIKA CRUD & MODAL HANDLERS
- * ========================================================
- */
-function openAddModal() { 
-    const el = document.getElementById('addModal');
-    if (el) el.classList.remove('hidden'); 
-}
-function closeAddModal() { 
-    const el = document.getElementById('addModal');
-    if (el) el.classList.add('hidden'); 
-}
-
-async function submitAddData(e) {
-    e.preventDefault();
-    const btn = document.getElementById('btnAddSubmit');
-    if (btn) btn.disabled = true;
-
-    try {
-        if (!supabaseClient) throw new Error("Supabase client belum terinisialisasi.");
-        const user = (await supabaseClient.auth.getUser()).data?.user;
-        const payload = {
-            student_id: user ? user.id : '00000000-0000-0000-0000-000000000000',
-            entry_date: document.getElementById('add_entry_date').value,
-            bangun_pagi: document.getElementById('add_b1').checked,
-            beribadah: document.getElementById('add_b2').checked,
-            berolahraga: document.getElementById('add_b3').checked,
-            makan_sehat: document.getElementById('add_b4').checked,
-            gemar_belajar: document.getElementById('add_b5').checked,
-            bermasyarakat: document.getElementById('add_b6').checked,
-            tidur_cepat: document.getElementById('add_b7').checked,
-            screen_time_hours: parseFloat(document.getElementById('add_screen_time').value) || 0
-        };
-
-        const { error } = await supabaseClient.from('daily_habits').insert([payload]);
-        if (error) throw error;
-
-        alert("🎉 Log 7 Kebiasaan berhasil disimpan!");
-        closeAddModal();
-        loadHabitsTable();
-    } catch (err) {
-        alert("Gagal menyimpan: " + err.message);
-    } finally {
-        if (btn) btn.disabled = false;
-    }
-}
-
-function openEditModal(item) {
-    document.getElementById('edit_id').value = item.id;
-    document.getElementById('edit_entry_date').value = item.entry_date;
-    document.getElementById('edit_b1').checked = item.bangun_pagi || false;
-    document.getElementById('edit_b2').checked = item.beribadah || false;
-    document.getElementById('edit_b3').checked = item.berolahraga || false;
-    document.getElementById('edit_b4').checked = item.makan_sehat || false;
-    document.getElementById('edit_b5').checked = item.gemar_belajar || false;
-    document.getElementById('edit_b6').checked = item.bermasyarakat || false;
-    document.getElementById('edit_b7').checked = item.tidur_cepat || false;
-    document.getElementById('edit_val_parent').checked = item.validated_by_parent || false;
-    document.getElementById('edit_val_teacher').checked = item.validated_by_teacher || false;
-
-    const el = document.getElementById('editModal');
-    if (el) el.classList.remove('hidden');
-}
-function closeEditModal() { 
-    const el = document.getElementById('editModal');
-    if (el) el.classList.add('hidden'); 
-}
-
-async function submitEditData(e) {
-    e.preventDefault();
-    const id = document.getElementById('edit_id').value;
-    const btn = document.getElementById('btnEditSubmit');
-    if (btn) btn.disabled = true;
-
-    try {
-        if (!supabaseClient) throw new Error("Supabase client belum terinisialisasi.");
-        const updated = {
-            entry_date: document.getElementById('edit_entry_date').value,
-            bangun_pagi: document.getElementById('edit_b1').checked,
-            beribadah: document.getElementById('edit_b2').checked,
-            berolahraga: document.getElementById('edit_b3').checked,
-            makan_sehat: document.getElementById('edit_b4').checked,
-            gemar_belajar: document.getElementById('edit_b5').checked,
-            bermasyarakat: document.getElementById('edit_b6').checked,
-            tidur_cepat: document.getElementById('edit_b7').checked,
-            validated_by_parent: document.getElementById('edit_val_parent').checked,
-            validated_by_teacher: document.getElementById('edit_val_teacher').checked
-        };
-
-        const { error } = await supabaseClient.from('daily_habits').update(updated).eq('id', id);
-        if (error) throw error;
-
-        alert("✅ Data berhasil diperbarui!");
-        closeEditModal();
-        loadHabitsTable();
-    } catch (err) {
-        alert("Gagal memperbarui: " + err.message);
-    } finally {
-        if (btn) btn.disabled = false;
-    }
-}
-
-function openDeleteModal(id) {
-    document.getElementById('delete_target_id').value = id;
-    const el = document.getElementById('deleteModal');
-    if (el) el.classList.remove('hidden');
-}
-function closeDeleteModal() { 
-    const el = document.getElementById('deleteModal');
-    if (el) el.classList.add('hidden'); 
-}
-
-async function executeDeleteData() {
-    const id = document.getElementById('delete_target_id').value;
-    const btn = document.getElementById('btnDeleteSubmit');
-    if (btn) btn.disabled = true;
-
-    try {
-        if (!supabaseClient) throw new Error("Supabase client belum terinisialisasi.");
-        const { error } = await supabaseClient.from('daily_habits').delete().eq('id', id);
-        if (error) throw error;
-
-        alert("🗑️ Data log berhasil dihapus!");
-        closeDeleteModal();
-        loadHabitsTable();
-    } catch (err) {
-        alert("Gagal menghapus: " + err.message);
-    } finally {
-        if (btn) btn.disabled = false;
-    }
-}
-
-function openImportModal() { 
-    const el = document.getElementById('importModal');
-    if (el) el.classList.remove('hidden'); 
-}
-function closeImportModal() { 
-    const el = document.getElementById('importModal');
-    if (el) el.classList.add('hidden'); 
-}
-
-async function submitImportCSV(e) {
-    e.preventDefault();
-    const fileInput = document.getElementById('csv_file_input');
-    if (!fileInput || !fileInput.files.length) return alert("Pilih file CSV terlebih dahulu.");
-
-    const reader = new FileReader();
-    reader.onload = async function(evt) {
-        try {
-            if (!supabaseClient) throw new Error("Supabase client belum terinisialisasi.");
-            const lines = evt.target.result.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-            const rows = [];
-            for (let i = 1; i < lines.length; i++) {
-                const cols = lines[i].split(',').map(c => c.trim().toLowerCase());
-                if (cols.length >= 9) {
-                    rows.push({
-                        student_id: cols[0],
-                        entry_date: cols[1],
-                        bangun_pagi: cols[2] === 'true' || cols[2] === '1',
-                        beribadah: cols[3] === 'true' || cols[3] === '1',
-                        berolahraga: cols[4] === 'true' || cols[4] === '1',
-                        makan_sehat: cols[5] === 'true' || cols[5] === '1',
-                        gemar_belajar: cols[6] === 'true' || cols[6] === '1',
-                        bermasyarakat: cols[7] === 'true' || cols[7] === '1',
-                        tidur_cepat: cols[8] === 'true' || cols[8] === '1'
-                    });
-                }
+            #printableReportArea, #printableReportArea * {
+                visibility: visible;
             }
-
-            const { error } = await supabaseClient.from('daily_habits').upsert(rows, { onConflict: 'student_id,entry_date' });
-            if (error) throw error;
-
-            alert(`🎉 Berhasil mengimpor ${rows.length} baris data!`);
-            closeImportModal();
-            loadHabitsTable();
-        } catch (err) {
-            alert("Gagal import: " + err.message);
+            #printableReportArea {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 20px;
+                background: white !important;
+                color: black !important;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 1.5cm;
+            }
         }
-    };
-    reader.readAsText(fileInput.files[0]);
-}
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans">
 
-function parentApproveAction() {
-    alert("Paraf & Validasi Orang Tua Berhasil Disimpan!");
-}
+    <!-- Header Navigation -->
+    <header class="bg-indigo-900 text-white shadow-lg sticky top-0 z-40 print:hidden">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-amber-400 text-indigo-950 font-black rounded-full flex items-center justify-center text-xl shadow">
+                    7K
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-wide">SMAN 1 BOGOR</h1>
+                    <p class="text-xs text-indigo-200">Control Dashboard 7 Kebiasaan Anak Indonesia Hebat</p>
+                </div>
+            </div>
 
-async function submitMainFormLog() {
-    alert("Jurnal 7KAIH Hari Ini Berhasil Disimpan!");
-}
+            <!-- Role Simulator Switcher -->
+            <div class="flex items-center space-x-2">
+                <span class="text-xs text-indigo-200 hidden md:inline">Hak Akses:</span>
+                <select id="roleSelector" onchange="changeRoleView(this.value)" class="bg-indigo-800 text-white text-xs px-3 py-1.5 rounded-lg border border-indigo-700 focus:outline-none cursor-pointer">
+                    <option value="siswa">👦 Role: Siswa (Log Harian)</option>
+                    <option value="orang_tua">👨‍👩‍👦 Role: Orang Tua (Validasi)</option>
+                    <option value="wali_kelas" selected>👩‍🏫 Role: Wali Kelas (Monitoring Kelas)</option>
+                    <option value="admin">🏛️ Role: Admin (Executive Dashboard)</option>
+                </select>
+            </div>
+        </div>
+    </header>
 
-/**
- * ==========================================================
- * 4. CHART.JS REALTIME & REALTIME SUBSCRIPTION SUPABASE
- * ==========================================================
- */
-function initCharts() {
-    const barEl = document.getElementById('habitsBarChart');
-    if (barEl && window.Chart) {
-        const ctxBar = barEl.getContext('2d');
-        habitsChartInstance = new window.Chart(ctxBar, {
-            type: 'bar',
-            data: {
-                labels: ['Bangun Pagi', 'Beribadah', 'Berolahraga', 'Makan Sehat', 'Gemar Belajar', 'Bermasyarakat', 'Tidur Cepat'],
-                datasets: [{
-                    label: '% Keterlaksanaan',
-                    data: [0, 0, 0, 0, 0, 0, 0],
-                    backgroundColor: 'rgba(79, 70, 229, 0.85)',
-                    borderRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
-                plugins: { legend: { display: false } }
-            }
-        });
-    }
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6 print:hidden">
 
-    const pieEl = document.getElementById('categoryDoughnutChart');
-    if (pieEl && window.Chart) {
-        const ctxPie = pieEl.getContext('2d');
-        categoryChartInstance = new window.Chart(ctxPie, {
-            type: 'doughnut',
-            data: {
-                labels: ['Sudah Terbiasa (ST)', 'Mulai Terbiasa (MT)', 'Belum Terbiasa (BT)'],
-                datasets: [{
-                    data: [0, 0, 0],
-                    backgroundColor: ['#10b981', '#f59e0b', '#f43f5e']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }
-            }
-        });
-    }
-}
+        <!-- ================= 1. VIEW SISWA ================= -->
+        <section id="roleSiswa" class="space-y-6 hidden">
+            <div class="glass-card p-6 rounded-2xl shadow-sm border-l-4 border-indigo-600">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900">Jurnal Kebiasaan Harian Siswa</h2>
+                        <p class="text-xs text-slate-500 mt-1">Lakukan pengisian 7 kebiasaan secara teratur untuk membentuk karakter tangguh.</p>
+                    </div>
+                    <span class="bg-indigo-100 text-indigo-800 text-xs font-bold px-3 py-1 rounded-full">Siswa SMAN 1 Bogor</span>
+                </div>
+            </div>
 
-async function fetchRealtimeClassData() {
-    const classFilterEl = document.getElementById('chartClassFilter');
-    const selectedClass = classFilterEl ? classFilterEl.value : 'ALL';
-    const badgeEl = document.getElementById('chartClassBadge');
-    if (badgeEl) badgeEl.innerText = selectedClass === 'ALL' ? 'Semua Kelas' : `Kelas ${selectedClass}`;
+            <div class="glass-card p-6 rounded-2xl shadow-sm space-y-4">
+                <div class="flex justify-between items-center border-b pb-3">
+                    <h3 class="font-bold text-slate-900 text-sm">Input Pembiasaan Hari Ini</h3>
+                    <input type="date" id="student_input_date" class="text-xs p-2 border rounded-lg bg-slate-50 font-bold">
+                </div>
 
-    try {
-        if (!supabaseClient) return;
-        const { data, error } = await supabaseClient.from('daily_habits').select('*');
-        if (error || !data || data.length === 0) return;
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
+                        <div><span class="font-bold text-xs text-slate-800 block">1. Bangun Pagi</span><span class="text-[10px] text-slate-400">Pukul 04.00 - 06.00 WIB</span></div>
+                        <input type="checkbox" id="main_b1" class="w-5 h-5 text-indigo-600 rounded">
+                    </label>
+                    <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
+                        <div><span class="font-bold text-xs text-slate-800 block">2. Beribadah Rutin</span><span class="text-[10px] text-slate-400">Sesuai agama & kepercayaan</span></div>
+                        <input type="checkbox" id="main_b2" class="w-5 h-5 text-indigo-600 rounded">
+                    </label>
+                    <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
+                        <div><span class="font-bold text-xs text-slate-800 block">3. Berolahraga</span><span class="text-[10px] text-slate-400">Aktivitas fisik / senam harian</span></div>
+                        <input type="checkbox" id="main_b3" class="w-5 h-5 text-indigo-600 rounded">
+                    </label>
+                    <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
+                        <div><span class="font-bold text-xs text-slate-800 block">4. Makan Sehat & Bergizi</span><span class="text-[10px] text-slate-400">Pola nutrisi Isi Piringku</span></div>
+                        <input type="checkbox" id="main_b4" class="w-5 h-5 text-indigo-600 rounded">
+                    </label>
+                    <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
+                        <div><span class="font-bold text-xs text-slate-800 block">5. Gemar Belajar</span><span class="text-[10px] text-slate-400">Literasi & mengulang materi</span></div>
+                        <input type="checkbox" id="main_b5" class="w-5 h-5 text-indigo-600 rounded">
+                    </label>
+                    <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
+                        <div><span class="font-bold text-xs text-slate-800 block">6. Bermasyarakat</span><span class="text-[10px] text-slate-400">Kepedulian sosial & lingkungan</span></div>
+                        <input type="checkbox" id="main_b6" class="w-5 h-5 text-indigo-600 rounded">
+                    </label>
+                    <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer md:col-span-2">
+                        <div><span class="font-bold text-xs text-slate-800 block">7. Tidur Cepat</span><span class="text-[10px] text-slate-400">Istirahat tepat waktu (Maks 21.00 WIB)</span></div>
+                        <input type="checkbox" id="main_b7" class="w-5 h-5 text-indigo-600 rounded">
+                    </label>
+                </div>
 
-        const total = data.length;
-        const sums = [0, 0, 0, 0, 0, 0, 0];
-        let st = 0, mt = 0, bt = 0;
+                <div class="pt-2">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Durasi Screen Time / Penggunaan Gawai (Jam):</label>
+                    <input type="number" step="0.5" id="main_screen_time" class="w-full text-xs p-2.5 border rounded-xl" placeholder="Contoh: 1.5" value="1.0">
+                </div>
 
-        data.forEach(item => {
-            const h = [
-                item.bangun_pagi, 
-                item.beribadah, 
-                item.berolahraga, 
-                item.makan_sehat, 
-                item.gemar_belajar, 
-                item.bermasyarakat, 
-                item.tidur_cepat
-            ];
-            h.forEach((val, idx) => { if (val) sums[idx]++; });
+                <button onclick="submitMainFormLog()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow transition">
+                    Simpan Jurnal Hari Ini
+                </button>
+            </div>
+        </section>
 
-            const pct = (h.filter(Boolean).length / 7) * 100;
-            if (pct > 70) st++;
-            else if (pct >= 50) mt++;
-            else bt++;
-        });
+        <!-- ================= 2. VIEW ORANG TUA ================= -->
+        <section id="roleOrangTua" class="space-y-6 hidden">
+            <div class="glass-card p-6 rounded-2xl shadow-sm border-l-4 border-emerald-600">
+                <h2 class="text-xl font-bold text-slate-900">Panel Validasi Orang Tua / Wali</h2>
+                <p class="text-xs text-slate-500 mt-1">Pantau & berikan persetujuan atas pengisian jurnal harian anak dari rumah.</p>
+            </div>
 
-        const habitPct = sums.map(s => Math.round((s / total) * 100));
+            <div class="glass-card p-6 rounded-xl space-y-4 shadow-sm">
+                <div class="flex justify-between items-center border-b pb-4">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Ahmad Fauzi (Siswa Kelas X-1)</h3>
+                        <p class="text-xs text-slate-500">Status Hari Ini: <span class="text-emerald-600 font-bold">Lengkap (7/7 Kebiasaan)</span></p>
+                    </div>
+                    <button onclick="parentApproveAction()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow">
+                        ✓ Paraf & Validasi Hari Ini
+                    </button>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-2">Catatan Refleksi & Apresiasi Orang Tua (Bulanan):</label>
+                    <textarea class="w-full text-xs p-3 border rounded-lg focus:ring-emerald-500 focus:border-emerald-500" rows="3" placeholder="Tuliskan dorongan moral atau catatan perkembangan anak..."></textarea>
+                </div>
+            </div>
+        </section>
 
-        if (habitsChartInstance && habitsChartInstance.data && habitsChartInstance.data.datasets && habitsChartInstance.data.datasets[0]) {
-            habitsChartInstance.data.datasets[0].data = habitPct;
-            habitsChartInstance.update();
-        }
-        if (categoryChartInstance && categoryChartInstance.data && categoryChartInstance.data.datasets && categoryChartInstance.data.datasets[0]) {
-            categoryChartInstance.data.datasets[0].data = [st, mt, bt];
-            categoryChartInstance.update();
-        }
-    } catch (err) {
-        console.error("Gagal update chart:", err);
-    }
-}
-
-function subscribeToSupabaseRealtime() {
-    if (!supabaseClient) return;
-    supabaseClient
-        .channel('public:daily_habits')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_habits' }, () => {
-            fetchRealtimeClassData();
-            loadHabitsTable();
-            const adminEl = document.getElementById('roleAdmin');
-            if (adminEl && !adminEl.classList.contains('hidden')) {
-                loadAdminExecutiveData();
-            }
-        })
-        .subscribe();
-}
-
-/**
- * ==========================================================
- * 5. LOGIKA EXECUTIVE ADMIN DASHBOARD
- * ==========================================================
- */
-async function loadAdminExecutiveData() {
-    try {
-        if (!supabaseClient) return;
-        const { data, error } = await supabaseClient.from('daily_habits').select('*');
-        
-        const totalLogsEl = document.getElementById('adminTotalLogs');
-        const avgScoreEl = document.getElementById('adminAvgScore');
-        const percentSTEl = document.getElementById('adminPercentST');
-        const parentValRateEl = document.getElementById('adminParentValRate');
-
-        if (error || !data || data.length === 0) {
-            if (totalLogsEl) totalLogsEl.innerText = '0';
-            if (avgScoreEl) avgScoreEl.innerText = '0%';
-            if (percentSTEl) percentSTEl.innerText = '0%';
-            if (parentValRateEl) parentValRateEl.innerText = '0%';
-            renderAdminChart([0, 0, 0, 0, 0, 0, 0]);
-            return;
-        }
-
-        const totalLogs = data.length;
-        let sumHabits = 0;
-        let countST = 0;
-        let countParentVal = 0;
-        const habitSums = [0, 0, 0, 0, 0, 0, 0];
-
-        data.forEach(item => {
-            const habits = [
-                item.bangun_pagi, 
-                item.beribadah, 
-                item.berolahraga, 
-                item.makan_sehat, 
-                item.gemar_belajar, 
-                item.bermasyarakat, 
-                item.tidur_cepat
-            ];
-            const completed = habits.filter(Boolean).length;
+        <!-- ================= 3. VIEW WALI KELAS & GRAFIK ================= -->
+        <section id="roleWaliKelas" class="space-y-6">
             
-            sumHabits += completed;
-            if ((completed / 7) * 100 > 70) countST++;
-            if (item.validated_by_parent) countParentVal++;
+            <!-- Filter & Status Real-Time -->
+            <div class="glass-card p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 bg-emerald-500 rounded-full animate-ping"></span>
+                    <span class="text-xs font-bold text-slate-700">Status Database: <span class="text-emerald-600">Terhubung Real-Time (Supabase)</span></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-semibold text-slate-600">Filter Kelas:</label>
+                    <select id="chartClassFilter" onchange="fetchRealtimeClassData()" class="text-xs p-2 border rounded-lg bg-white font-bold text-slate-800">
+                        <option value="ALL">Seluruh Kelas (SMAN 1 Bogor)</option>
+                        <option value="X-1" selected>Kelas X-1</option>
+                        <option value="XI-1">Kelas XI-1</option>
+                        <option value="XII-1">Kelas XII-1</option>
+                    </select>
+                    <button onclick="printMonthlyReportPDF()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow transition flex items-center gap-1">
+                        📄 Cetak PDF
+                    </button>
+                </div>
+            </div>
 
-            habits.forEach((v, i) => { if (v) habitSums[i]++; });
-        });
+            <!-- Layout 2 Grafik (Chart.js) -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="glass-card p-5 rounded-2xl bg-white shadow-sm border border-slate-200 lg:col-span-2">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h4 class="font-bold text-slate-900 text-sm">Persentase Capaian 7 Kebiasaan Hebat</h4>
+                            <p class="text-[11px] text-slate-500">Rata-rata frekuensi pelaksanaan harian siswa</p>
+                        </div>
+                        <span class="text-xs font-bold bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-full" id="chartClassBadge">Kelas X-1</span>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="habitsBarChart"></canvas>
+                    </div>
+                </div>
 
-        // Update Kartu KPI Admin
-        if (totalLogsEl) totalLogsEl.innerText = totalLogs.toLocaleString('id-ID');
-        if (avgScoreEl) avgScoreEl.innerText = Math.round((sumHabits / (totalLogs * 7)) * 100) + '%';
-        if (percentSTEl) percentSTEl.innerText = Math.round((countST / totalLogs) * 100) + '%';
-        if (parentValRateEl) parentValRateEl.innerText = Math.round((countParentVal / totalLogs) * 100) + '%';
+                <div class="glass-card p-5 rounded-2xl bg-white shadow-sm border border-slate-200">
+                    <div class="mb-4">
+                        <h4 class="font-bold text-slate-900 text-sm">Distribusi Kategori Karakter</h4>
+                        <p class="text-[11px] text-slate-500">Kategori ST (>70%), MT (50-70%), dan BT (&lt;50%)</p>
+                    </div>
+                    <div class="h-64 flex justify-center items-center">
+                        <canvas id="categoryDoughnutChart"></canvas>
+                    </div>
+                </div>
+            </div>
 
-        // Render Grafik Agregat Admin
-        renderAdminChart(habitSums.map(s => Math.round((s / totalLogs) * 100)));
+            <!-- Tabel Data Management CRUD -->
+            <div class="glass-card p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">Manajemen Log 7KAIH Siswa</h3>
+                        <p class="text-xs text-slate-500">Kelola entri pembiasaan harian, validasi, dan import data massal</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="openAddModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow">
+                            ➕ Tambah Log Harian
+                        </button>
+                        <button onclick="openImportModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow">
+                            📥 Import File CSV
+                        </button>
+                    </div>
+                </div>
 
-    } catch (err) {
-        console.error("Gagal memuat data eksekutif admin:", err);
-    }
-}
+                <div class="overflow-x-auto rounded-xl border border-slate-200">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-indigo-900 text-white font-semibold">
+                                <th class="p-3">Tanggal</th>
+                                <th class="p-3">Siswa / Kelas</th>
+                                <th class="p-3 text-center">Capaian 7KAIH</th>
+                                <th class="p-3 text-center">Kategori</th>
+                                <th class="p-3 text-center">Validasi Ortu</th>
+                                <th class="p-3 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="habitsTableBody" class="divide-y divide-slate-100 bg-white">
+                            <!-- Data di-render dinamis via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-function renderAdminChart(percentages = [0, 0, 0, 0, 0, 0, 0]) {
-    const ctx = document.getElementById('adminOverviewChart');
-    if (!ctx || !window.Chart) return;
+        </section>
 
-    if (adminChartInstance) adminChartInstance.destroy();
+        <!-- ================= 4. VIEW ADMIN (EXECUTIVE DASHBOARD) ================= -->
+        <section id="roleAdmin" class="space-y-6 hidden">
+            <!-- Header Admin -->
+            <div class="glass-card p-6 rounded-2xl shadow-sm border-l-4 border-purple-600 flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">Executive Dashboard SMAN 1 Bogor</h2>
+                    <p class="text-xs text-slate-500 mt-1">Monitoring Rekapitulasi 7KAIH Tingkat Sekolah (29 Kelas ~ 1.000 Siswa)</p>
+                </div>
+                <span class="bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1.5 rounded-full">Administrator / Kepsek</span>
+            </div>
 
-    adminChartInstance = new window.Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: ['Bangun Pagi', 'Beribadah', 'Berolahraga', 'Makan Sehat', 'Gemar Belajar', 'Bermasyarakat', 'Tidur Cepat'],
-            datasets: [{
-                label: '% Capaian Seluruh Sekolah',
-                data: percentages,
-                backgroundColor: 'rgba(147, 51, 234, 0.85)',
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
-            plugins: { legend: { display: false } }
-        }
-    });
-}
+            <!-- 4 Kartu Ringkasan KPI Sekolah -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="glass-card p-4 rounded-xl bg-white shadow-sm border border-slate-200">
+                    <p class="text-xs font-semibold text-slate-500">Total Log Masuk</p>
+                    <h3 class="text-2xl font-black text-slate-900 mt-1" id="adminTotalLogs">0</h3>
+                    <span class="text-[10px] text-emerald-600 font-bold">Terhubung Supabase Realtime</span>
+                </div>
+                <div class="glass-card p-4 rounded-xl bg-white shadow-sm border border-slate-200">
+                    <p class="text-xs font-semibold text-slate-500">Rata-Rata Capaian Sekolah</p>
+                    <h3 class="text-2xl font-black text-indigo-600 mt-1" id="adminAvgScore">0%</h3>
+                    <span class="text-[10px] text-indigo-500 font-bold">7 Indikator 7KAIH</span>
+                </div>
+                <div class="glass-card p-4 rounded-xl bg-white shadow-sm border border-slate-200">
+                    <p class="text-xs font-semibold text-slate-500">Kategori Sudah Terbiasa (ST)</p>
+                    <h3 class="text-2xl font-black text-emerald-600 mt-1" id="adminPercentST">0%</h3>
+                    <span class="text-[10px] text-emerald-600 font-bold">Target Sekolah: >70%</span>
+                </div>
+                <div class="glass-card p-4 rounded-xl bg-white shadow-sm border border-slate-200">
+                    <p class="text-xs font-semibold text-slate-500">Partisipasi Validasi Ortu</p>
+                    <h3 class="text-2xl font-black text-amber-600 mt-1" id="adminParentValRate">0%</h3>
+                    <span class="text-[10px] text-amber-600 font-bold">Partisipasi Rumah</span>
+                </div>
+            </div>
 
-/**
- * ==========================================================
- * 6. GENERATOR LAPORAN CETAK PDF BULANAN
- * ==========================================================
- */
-function printMonthlyReportPDF() {
-    const chartCanvas = document.getElementById('habitsBarChart');
-    if (chartCanvas) {
-        const pdfImg = document.getElementById('pdfChartImage');
-        if (pdfImg) pdfImg.src = chartCanvas.toDataURL('image/png');
-    }
+            <!-- Grafik Ringkasan Tingkat Sekolah -->
+            <div class="glass-card p-5 rounded-2xl bg-white shadow-sm border border-slate-200">
+                <h4 class="font-bold text-slate-900 text-sm mb-1">Capaian 7 Kebiasaan Seluruh Siswa SMAN 1 Bogor</h4>
+                <p class="text-[11px] text-slate-500 mb-4">Agregat pelaksanaan harian dari seluruh tingkatan kelas (X, XI, XII)</p>
+                <div class="h-64">
+                    <canvas id="adminOverviewChart"></canvas>
+                </div>
+            </div>
+        </section>
 
-    const habitNames = [
-        { name: '1. Bangun Pagi', rule: '04.00 - 06.00 WIB' },
-        { name: '2. Beribadah', rule: 'Rutin sesuai agama/kepercayaan' },
-        { name: '3. Berolahraga', rule: 'Aktivitas fisik / senam harian' },
-        { name: '4. Makan Sehat & Bergizi', rule: 'Nutrisi seimbang Isi Piringku' },
-        { name: '5. Gemar Belajar', rule: 'Literasi & mengulang pelajaran' },
-        { name: '6. Bermasyarakat', rule: 'Kepedulian sosial & lingkungan' },
-        { name: '7. Tidur Cepat', rule: 'Istirahat berkualitas (Maks 21.00 WIB)' }
-    ];
+    </main>
 
-    const currentData = (habitsChartInstance && habitsChartInstance.data && habitsChartInstance.data.datasets && habitsChartInstance.data.datasets[0]) 
-        ? habitsChartInstance.data.datasets[0].data 
-        : [0, 0, 0, 0, 0, 0, 0];
+    <!-- ================= MODAL DIALOGS ================= -->
 
-    const pdfTbody = document.getElementById('pdfTableBody');
-    if (pdfTbody) {
-        pdfTbody.innerHTML = habitNames.map((h, idx) => `
-            <tr class="border-b border-slate-200">
-                <td class="border border-slate-300 p-2 text-center font-bold">${idx + 1}</td>
-                <td class="border border-slate-300 p-2 font-semibold">${h.name}</td>
-                <td class="border border-slate-300 p-2 text-slate-600">${h.rule}</td>
-                <td class="border border-slate-300 p-2 text-center font-bold text-indigo-900">${currentData[idx] || 0}%</td>
-            </tr>
-        `).join('');
-    }
+    <!-- 1. MODAL TAMBAH DATA -->
+    <div id="addModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="text-lg font-bold text-slate-900">Tambah Log 7KAIH Baru</h3>
+                <button onclick="closeAddModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            <form onsubmit="submitAddData(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Tanggal Log:</label>
+                    <input type="date" id="add_entry_date" class="w-full text-xs p-2.5 border rounded-lg" required>
+                </div>
+                <div class="space-y-1.5 border-t border-b py-3">
+                    <span class="block text-xs font-bold text-slate-700 mb-1">Checklist 7 Kebiasaan Harian:</span>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>1. Bangun Pagi (04.00-06.00 WIB)</span><input type="checkbox" id="add_b1" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>2. Beribadah Rutin</span><input type="checkbox" id="add_b2" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>3. Berolahraga / Aktivitas Fisik</span><input type="checkbox" id="add_b3" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>4. Makan Sehat & Bergizi (Isi Piringku)</span><input type="checkbox" id="add_b4" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>5. Gemar Belajar & Literasi</span><input type="checkbox" id="add_b5" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>6. Bermasyarakat & Peduli Lingkungan</span><input type="checkbox" id="add_b6" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>7. Tidur Cepat (Maks 21.00 WIB)</span><input type="checkbox" id="add_b7" class="w-4 h-4 text-indigo-600 rounded"></label>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Screen Time (Jam):</label>
+                    <input type="number" step="0.5" min="0" max="24" id="add_screen_time" class="w-full text-xs p-2.5 border rounded-lg" value="1.0">
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeAddModal()" class="px-4 py-2 text-xs font-semibold bg-slate-100 rounded-lg">Batal</button>
+                    <button type="submit" id="btnAddSubmit" class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    const signDateEl = document.getElementById('pdfSignDate');
-    if (signDateEl) signDateEl.innerText = new Date().toLocaleDateString('id-ID', options);
+    <!-- 2. MODAL EDIT DATA -->
+    <div id="editModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="text-lg font-bold text-slate-900">Edit Log Kebiasaan</h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            <form onsubmit="submitEditData(event)" class="space-y-3">
+                <input type="hidden" id="edit_id">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Tanggal Entri:</label>
+                    <input type="date" id="edit_entry_date" class="w-full text-xs p-2.5 border rounded-lg" required>
+                </div>
+                <div class="space-y-1.5 border-t border-b py-3">
+                    <span class="block text-xs font-bold text-slate-700 mb-1">Checklist 7 Kebiasaan:</span>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>1. Bangun Pagi</span><input type="checkbox" id="edit_b1" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>2. Beribadah</span><input type="checkbox" id="edit_b2" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>3. Berolahraga</span><input type="checkbox" id="edit_b3" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>4. Makan Sehat</span><input type="checkbox" id="edit_b4" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>5. Gemar Belajar</span><input type="checkbox" id="edit_b5" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>6. Bermasyarakat</span><input type="checkbox" id="edit_b6" class="w-4 h-4 text-indigo-600 rounded"></label>
+                    <label class="flex justify-between text-xs p-1.5 hover:bg-slate-50 rounded"><span>7. Tidur Cepat</span><input type="checkbox" id="edit_b7" class="w-4 h-4 text-indigo-600 rounded"></label>
+                </div>
+                <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg">
+                    <label class="flex items-center gap-1.5 text-xs font-semibold"><input type="checkbox" id="edit_val_parent" class="w-4 h-4 text-emerald-600 rounded"> Paraf Ortu</label>
+                    <label class="flex items-center gap-1.5 text-xs font-semibold"><input type="checkbox" id="edit_val_teacher" class="w-4 h-4 text-indigo-600 rounded"> Validasi Guru</label>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 text-xs font-semibold bg-slate-100 rounded-lg">Batal</button>
+                    <button type="submit" id="btnEditSubmit" class="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow">Perbarui</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-    window.print();
-}
+    <!-- 3. MODAL HAPUS DATA -->
+    <div id="deleteModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-200">
+            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-3">⚠️</div>
+            <h3 class="text-base font-bold text-slate-900 mb-1">Hapus Log Kebiasaan?</h3>
+            <p class="text-xs text-slate-500 mb-5">Data ini akan dihapus permanen dari Supabase Database.</p>
+            <input type="hidden" id="delete_target_id">
+            <div class="flex justify-center gap-2">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg">Batal</button>
+                <button onclick="executeDeleteData()" id="btnDeleteSubmit" class="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. MODAL IMPORT CSV -->
+    <div id="importModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="text-lg font-bold text-slate-900">Import Massal CSV</h3>
+                <button onclick="closeImportModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            <form onsubmit="submitImportCSV(event)" class="space-y-4">
+                <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-emerald-500 transition bg-slate-50">
+                    <input type="file" id="csv_file_input" accept=".csv" class="hidden">
+                    <label for="csv_file_input" class="cursor-pointer space-y-2 block">
+                        <span class="text-3xl block">📄</span>
+                        <span class="text-xs font-bold text-slate-700 block">Pilih / Unggah File CSV</span>
+                        <span class="text-[10px] text-slate-400 block">Format: student_id, entry_date, b1, b2, b3, b4, b5, b6, b7</span>
+                    </label>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeImportModal()" class="px-4 py-2 text-xs font-semibold bg-slate-100 rounded-lg">Batal</button>
+                    <button type="submit" id="btnImportSubmit" class="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow">Proses Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= TEMPLATE LAPORAN CETAK PDF ================= -->
+    <div id="printableReportArea" class="hidden print:block p-8 bg-white text-slate-900 font-serif">
+        <div class="border-b-4 border-double border-slate-900 pb-4 mb-6 text-center relative">
+            <h2 class="text-lg font-bold uppercase tracking-wide">PEMERINTAH PROVINSI JAWA BARAT</h2>
+            <h3 class="text-xl font-black uppercase tracking-wider">DINAS PENDIDIKAN - CABANG DINAS WILAYAH I</h3>
+            <h1 class="text-2xl font-black uppercase tracking-widest text-indigo-950 my-1">SMAN 1 BOGOR</h1>
+            <p class="text-xs text-slate-600 italic">Jl. Ir. H. Juanda No.16, RT.01/RW.01, Paledang, Kec. Bogor Tengah, Kota Bogor, Jawa Barat 16122</p>
+        </div>
+
+        <div class="text-center mb-6">
+            <h3 class="text-base font-bold underline uppercase">LAPORAN BULANAN EVALUASI GERAKAN 7 KEBIASAAN ANAK INDONESIA HEBAT (7KAIH)</h3>
+            <p class="text-xs text-slate-600">Periode Laporan: <span id="pdfReportPeriod">November 2026</span> | Satuan Pendidikan: SMAN 1 Bogor</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 text-xs mb-6 border p-4 rounded-lg bg-slate-50">
+            <div>
+                <p><strong>Kelas / Angkatan:</strong> <span id="pdfClassName">Kelas X-1</span></p>
+                <p><strong>Wali Kelas:</strong> <span id="pdfTeacherName">Dra. Siti Aminah, M.Pd.</span></p>
+            </div>
+            <div>
+                <p><strong>Sudah Terbiasa (ST >70%):</strong> <span id="pdfCountST">25 Siswa</span></p>
+                <p><strong>Mulai Terbiasa (MT 50-70%):</strong> <span id="pdfCountMT">7 Siswa</span></p>
+                <p><strong>Belum Terbiasa (BT &lt;50%):</strong> <span id="pdfCountBT">3 Siswa</span></p>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h4 class="text-xs font-bold border-b pb-1 mb-3">I. VISUALISASI CAPAIAN 7 KEBIASAAN HARIAN</h4>
+            <div class="flex justify-center">
+                <img id="pdfChartImage" class="max-h-64 object-contain border p-2 rounded" alt="Grafik Capaian 7KAIH" />
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <h4 class="text-xs font-bold border-b pb-1 mb-3">II. DETAIL PERSENTASE KETERLAKSANAAN PER INDIKATOR</h4>
+            <table class="w-full text-xs border-collapse border border-slate-300">
+                <thead>
+                    <tr class="bg-slate-100 font-bold text-center">
+                        <th class="border border-slate-300 p-2">No</th>
+                        <th class="border border-slate-300 p-2 text-left">Indikator 7 Kebiasaan Hebat</th>
+                        <th class="border border-slate-300 p-2">Target Waktu / Ketentuan</th>
+                        <th class="border border-slate-300 p-2">Capaian Kelas (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="pdfTableBody">
+                    <!-- Data di-render dinamis via JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="grid grid-cols-2 text-center text-xs mt-12 pt-6 gap-8">
+            <div>
+                <p class="mb-1">Mengetahui,</p>
+                <p class="font-bold mb-16">Kepala SMAN 1 Bogor</p>
+                <p class="font-bold underline">Drs. H. Maman Suherman, M.Pd.</p>
+                <p class="text-[10px] text-slate-500">NIP. 19680321 199403 1 002</p>
+            </div>
+            <div>
+                <p class="mb-1">Kota Bogor, <span id="pdfSignDate">30 November 2026</span></p>
+                <p class="font-bold mb-16">Wali Kelas</p>
+                <p class="font-bold underline" id="pdfTeacherSignName">Dra. Siti Aminah, M.Pd.</p>
+                <p class="text-[10px] text-slate-500">NIP. 19720514 199802 2 001</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Aplikasi Utama -->
+    <script src="js/app.js"></script>
+</body>
+</html>
