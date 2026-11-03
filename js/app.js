@@ -7,48 +7,57 @@
 const SUPABASE_URL = 'https://udgxelmebjzzwlumnbox.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkZ3hlbG1lYmp6endsdW1uYm94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NDIwMTksImV4cCI6MjEwOTAxODAxOX0.Q6m0XquxaKNhMlz7Ef03xHzu5Sbq3yE8WphpwZmVnhA';
 
-// Inisialisasi Supabase Client SDK
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Inisialisasi SDK Supabase
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-// Variabel Global Instance Chart.js
+// Global Chart Instances
 let habitsChartInstance = null;
 let categoryChartInstance = null;
+let adminChartInstance = null;
 
-// Inisialisasi Aplikasi Saat DOM Selesai Dimuat
+// Inisialisasi Aplikasi Saat DOM Siap
 document.addEventListener('DOMContentLoaded', () => {
     const today = new Date().toISOString().split('T')[0];
     if (document.getElementById('add_entry_date')) document.getElementById('add_entry_date').value = today;
     if (document.getElementById('student_input_date')) document.getElementById('student_input_date').value = today;
 
-    // 1. Muat Tabel & Chart
+    // Muat Komponen Utama
     loadHabitsTable();
     initCharts();
     fetchRealtimeClassData();
 
-    // 2. Langganan Supabase Realtime
+    // Jalankan Langganan Realtime WebSocket
     subscribeToSupabaseRealtime();
 });
 
 /**
  * ========================================================
- * 1. ROLE SWITCHER UI
+ * 1. ROLE SWITCHER & EXECUTIVE DASHBOARD LOAD
  * ========================================================
  */
 function changeRoleView(role) {
-    document.getElementById('roleSiswa').classList.add('hidden');
-    document.getElementById('roleOrangTua').classList.add('hidden');
-    document.getElementById('roleWaliKelas').classList.add('hidden');
-    document.getElementById('roleAdmin').classList.add('hidden');
+    const siswaEl = document.getElementById('roleSiswa');
+    const ortuEl = document.getElementById('roleOrangTua');
+    const waliEl = document.getElementById('roleWaliKelas');
+    const adminEl = document.getElementById('roleAdmin');
 
-    if (role === 'siswa') document.getElementById('roleSiswa').classList.remove('hidden');
-    if (role === 'orang_tua') document.getElementById('roleOrangTua').classList.remove('hidden');
-    if (role === 'wali_kelas') document.getElementById('roleWaliKelas').classList.remove('hidden');
-    if (role === 'admin') document.getElementById('roleAdmin').classList.remove('hidden');
+    if (siswaEl) siswaEl.classList.add('hidden');
+    if (ortuEl) ortuEl.classList.add('hidden');
+    if (waliEl) waliEl.classList.add('hidden');
+    if (adminEl) adminEl.classList.add('hidden');
+
+    if (role === 'siswa' && siswaEl) siswaEl.classList.remove('hidden');
+    if (role === 'orang_tua' && ortuEl) ortuEl.classList.remove('hidden');
+    if (role === 'wali_kelas' && waliEl) waliEl.classList.remove('hidden');
+    if (role === 'admin' && adminEl) {
+        adminEl.classList.remove('hidden');
+        loadAdminExecutiveData(); // Muat Statistik Executive Admin
+    }
 }
 
 /**
  * ========================================================
- * 2. LOAD TABEL DATA & KALKULASI OTOMATIS ST/MT/BT
+ * 2. LOAD TABEL DATA & ASESMEN OTOMATIS (ST/MT/BT)
  * ========================================================
  */
 async function loadHabitsTable() {
@@ -88,8 +97,8 @@ async function loadHabitsTable() {
                 categoryBadge = `<span class="bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded font-bold text-[10px]">BT (${percentage}%)</span>`;
             }
 
-            const studentName = item.profiles?.full_name || 'Ahmad Fauzi';
-            const className = item.profiles?.classes?.class_name || 'X-1';
+            const studentName = item.profiles?.full_name || 'Siswa';
+            const className = item.profiles?.classes?.class_name || '-';
 
             return `
                 <tr class="hover:bg-slate-50 border-b transition">
@@ -124,7 +133,7 @@ async function loadHabitsTable() {
 
 /**
  * ========================================================
- * 3. FUNGSI CRUD & MODAL HANDLERS
+ * 3. LOGIKA CRUD & MODAL HANDLERS
  * ========================================================
  */
 function openAddModal() { document.getElementById('addModal').classList.remove('hidden'); }
@@ -133,12 +142,12 @@ function closeAddModal() { document.getElementById('addModal').classList.add('hi
 async function submitAddData(e) {
     e.preventDefault();
     const btn = document.getElementById('btnAddSubmit');
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
 
     try {
         const user = (await supabaseClient.auth.getUser()).data?.user;
         const payload = {
-            student_id: user ? user.id : '00000000-0000-0000-0000-000000000000', // Default fallback uuid
+            student_id: user ? user.id : '00000000-0000-0000-0000-000000000000',
             entry_date: document.getElementById('add_entry_date').value,
             bangun_pagi: document.getElementById('add_b1').checked,
             beribadah: document.getElementById('add_b2').checked,
@@ -159,7 +168,7 @@ async function submitAddData(e) {
     } catch (err) {
         alert("Gagal menyimpan: " + err.message);
     } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -184,7 +193,7 @@ async function submitEditData(e) {
     e.preventDefault();
     const id = document.getElementById('edit_id').value;
     const btn = document.getElementById('btnEditSubmit');
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
 
     try {
         const updated = {
@@ -209,7 +218,7 @@ async function submitEditData(e) {
     } catch (err) {
         alert("Gagal memperbarui: " + err.message);
     } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -222,7 +231,7 @@ function closeDeleteModal() { document.getElementById('deleteModal').classList.a
 async function executeDeleteData() {
     const id = document.getElementById('delete_target_id').value;
     const btn = document.getElementById('btnDeleteSubmit');
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
 
     try {
         const { error } = await supabaseClient.from('daily_habits').delete().eq('id', id);
@@ -234,7 +243,7 @@ async function executeDeleteData() {
     } catch (err) {
         alert("Gagal menghapus: " + err.message);
     } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -244,7 +253,7 @@ function closeImportModal() { document.getElementById('importModal').classList.a
 async function submitImportCSV(e) {
     e.preventDefault();
     const fileInput = document.getElementById('csv_file_input');
-    if (!fileInput.files.length) return alert("Pilih file CSV terlebih dahulu.");
+    if (!fileInput || !fileInput.files.length) return alert("Pilih file CSV terlebih dahulu.");
 
     const reader = new FileReader();
     reader.onload = async function(evt) {
@@ -295,47 +304,55 @@ async function submitMainFormLog() {
  * ==========================================================
  */
 function initCharts() {
-    const ctxBar = document.getElementById('habitsBarChart').getContext('2d');
-    habitsChartInstance = new Chart(ctxBar, {
-        type: 'bar',
-        data: {
-            labels: ['Bangun Pagi', 'Beribadah', 'Berolahraga', 'Makan Sehat', 'Gemar Belajar', 'Bermasyarakat', 'Tidur Cepat'],
-            datasets: [{
-                label: '% Keterlaksanaan',
-                data: [85, 90, 70, 80, 75, 65, 88],
-                backgroundColor: 'rgba(79, 70, 229, 0.85)',
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
-            plugins: { legend: { display: false } }
-        }
-    });
+    const barEl = document.getElementById('habitsBarChart');
+    if (barEl) {
+        const ctxBar = barEl.getContext('2d');
+        habitsChartInstance = new window.Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: ['Bangun Pagi', 'Beribadah', 'Berolahraga', 'Makan Sehat', 'Gemar Belajar', 'Bermasyarakat', 'Tidur Cepat'],
+                datasets: [{
+                    label: '% Keterlaksanaan',
+                    data: [0, 0, 0, 0, 0, 0, 0],
+                    backgroundColor: 'rgba(79, 70, 229, 0.85)',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
 
-    const ctxPie = document.getElementById('categoryDoughnutChart').getContext('2d');
-    categoryChartInstance = new Chart(ctxPie, {
-        type: 'doughnut',
-        data: {
-            labels: ['Sudah Terbiasa (ST)', 'Mulai Terbiasa (MT)', 'Belum Terbiasa (BT)'],
-            datasets: [{
-                data: [25, 7, 3],
-                backgroundColor: ['#10b981', '#f59e0b', '#f43f5e']
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }
-        }
-    });
+    const pieEl = document.getElementById('categoryDoughnutChart');
+    if (pieEl) {
+        const ctxPie = pieEl.getContext('2d');
+        categoryChartInstance = new window.Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: ['Sudah Terbiasa (ST)', 'Mulai Terbiasa (MT)', 'Belum Terbiasa (BT)'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: ['#10b981', '#f59e0b', '#f43f5e']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }
+            }
+        });
+    }
 }
 
 async function fetchRealtimeClassData() {
-    const selectedClass = document.getElementById('chartClassFilter').value;
-    document.getElementById('chartClassBadge').innerText = selectedClass === 'ALL' ? 'Semua Kelas' : `Kelas ${selectedClass}`;
+    const classFilterEl = document.getElementById('chartClassFilter');
+    const selectedClass = classFilterEl ? classFilterEl.value : 'ALL';
+    const badgeEl = document.getElementById('chartClassBadge');
+    if (badgeEl) badgeEl.innerText = selectedClass === 'ALL' ? 'Semua Kelas' : `Kelas ${selectedClass}`;
 
     try {
         const { data, error } = await supabaseClient.from('daily_habits').select('*');
@@ -357,10 +374,11 @@ async function fetchRealtimeClassData() {
 
         const habitPct = sums.map(s => Math.round((s / total) * 100));
 
-        if (habitsChartInstance && categoryChartInstance) {
+        if (habitsChartInstance) {
             habitsChartInstance.data.datasets[0].data = habitPct;
             habitsChartInstance.update();
-
+        }
+        if (categoryChartInstance) {
             categoryChartInstance.data.datasets[0].data = [st, mt, bt];
             categoryChartInstance.update();
         }
@@ -370,24 +388,102 @@ async function fetchRealtimeClassData() {
 }
 
 function subscribeToSupabaseRealtime() {
+    if (!supabaseClient) return;
     supabaseClient
         .channel('public:daily_habits')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_habits' }, () => {
             fetchRealtimeClassData();
             loadHabitsTable();
+            const adminEl = document.getElementById('roleAdmin');
+            if (adminEl && !adminEl.classList.contains('hidden')) {
+                loadAdminExecutiveData();
+            }
         })
         .subscribe();
 }
 
 /**
  * ==========================================================
- * 5. PRINT PDF REPORT GENERATOR
+ * 5. LOGIKA EXECUTIVE ADMIN DASHBOARD
+ * ==========================================================
+ */
+async function loadAdminExecutiveData() {
+    try {
+        const { data, error } = await supabaseClient.from('daily_habits').select('*');
+        if (error || !data || data.length === 0) return;
+
+        const totalLogs = data.length;
+        let sumHabits = 0;
+        let countST = 0;
+        let countParentVal = 0;
+        const habitSums = [0, 0, 0, 0, 0, 0, 0];
+
+        data.forEach(item => {
+            const habits = [item.bangun_pagi, item.beribadah, item.berolahraga, item.makan_sehat, item.gemar_belajar, item.bermasyarakat, item.tidur_cepat];
+            const completed = habits.filter(Boolean).length;
+            
+            sumHabits += completed;
+            if ((completed / 7) * 100 > 70) countST++;
+            if (item.validated_by_parent) countParentVal++;
+
+            habits.forEach((v, i) => { if (v) habitSums[i]++; });
+        });
+
+        // Update Kartu KPI Admin
+        const totalLogsEl = document.getElementById('adminTotalLogs');
+        const avgScoreEl = document.getElementById('adminAvgScore');
+        const percentSTEl = document.getElementById('adminPercentST');
+        const parentValRateEl = document.getElementById('adminParentValRate');
+
+        if (totalLogsEl) totalLogsEl.innerText = totalLogs.toLocaleString('id-ID');
+        if (avgScoreEl) avgScoreEl.innerText = Math.round((sumHabits / (totalLogs * 7)) * 100) + '%';
+        if (percentSTEl) percentSTEl.innerText = Math.round((countST / totalLogs) * 100) + '%';
+        if (parentValRateEl) parentValRateEl.innerText = Math.round((countParentVal / totalLogs) * 100) + '%';
+
+        // Render Grafik Agregat Admin
+        renderAdminChart(habitSums.map(s => Math.round((s / totalLogs) * 100)));
+
+    } catch (err) {
+        console.error("Gagal memuat data eksekutif admin:", err);
+    }
+}
+
+function renderAdminChart(percentages) {
+    const ctx = document.getElementById('adminOverviewChart');
+    if (!ctx) return;
+
+    if (adminChartInstance) adminChartInstance.destroy();
+
+    adminChartInstance = new window.Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Bangun Pagi', 'Beribadah', 'Berolahraga', 'Makan Sehat', 'Gemar Belajar', 'Bermasyarakat', 'Tidur Cepat'],
+            datasets: [{
+                label: '% Capaian Seluruh Sekolah',
+                data: percentages,
+                backgroundColor: 'rgba(147, 51, 234, 0.85)',
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+/**
+ * ==========================================================
+ * 6. GENERATOR LAPORAN CETAK PDF BULANAN
  * ==========================================================
  */
 function printMonthlyReportPDF() {
     const chartCanvas = document.getElementById('habitsBarChart');
     if (chartCanvas) {
-        document.getElementById('pdfChartImage').src = chartCanvas.toDataURL('image/png');
+        const pdfImg = document.getElementById('pdfChartImage');
+        if (pdfImg) pdfImg.src = chartCanvas.toDataURL('image/png');
     }
 
     const habitNames = [
@@ -400,7 +496,9 @@ function printMonthlyReportPDF() {
         { name: '7. Tidur Cepat', rule: 'Istirahat berkualitas (Maks 21.00 WIB)' }
     ];
 
-    const currentData = habitsChartInstance ? habitsChartInstance.data.datasets[0].data : [85, 90, 70, 80, 75, 65, 88];
+    const currentData = (habitsChartInstance && habitsChartInstance.data.datasets[0]) 
+        ? habitsChartInstance.data.datasets[0].data 
+        : [0, 0, 0, 0, 0, 0, 0];
 
     const pdfTbody = document.getElementById('pdfTableBody');
     if (pdfTbody) {
@@ -415,7 +513,8 @@ function printMonthlyReportPDF() {
     }
 
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    document.getElementById('pdfSignDate').innerText = new Date().toLocaleDateString('id-ID', options);
+    const signDateEl = document.getElementById('pdfSignDate');
+    if (signDateEl) signDateEl.innerText = new Date().toLocaleDateString('id-ID', options);
 
     window.print();
 }
