@@ -7,6 +7,7 @@
 const SUPABASE_URL = 'https://udgxelmebjzzwlumnbox.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkZ3hlbG1lYmp6endsdW1uYm94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NDIwMTksImV4cCI6MjEwOTAxODAxOX0.Q6m0XquxaKNhMlz7Ef03xHzu5Sbq3yE8WphpwZmVnhA';
 
+
 // Inisialisasi SDK Supabase dengan Proteksi Browser
 const supabaseClient = (typeof window !== 'undefined' && window.supabase) 
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
@@ -55,7 +56,7 @@ function changeRoleView(role) {
     if (role === 'wali_kelas' && waliEl) waliEl.classList.remove('hidden');
     if (role === 'admin' && adminEl) {
         adminEl.classList.remove('hidden');
-        loadAdminExecutiveData(); // Muat Statistik Executive Admin
+        loadAdminExecutiveData(); // Memuat statistik khusus Executive Admin
     }
 }
 
@@ -110,8 +111,8 @@ async function loadHabitsTable() {
                 categoryBadge = `<span class="bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded font-bold text-[10px]">BT (${percentage}%)</span>`;
             }
 
-            const studentName = item.profiles?.full_name || 'Siswa';
-            const className = item.profiles?.classes?.class_name || '-';
+            const studentName = item.profiles?.full_name || 'Ahmad Fauzi';
+            const className = item.profiles?.classes?.class_name || 'X-1';
 
             return `
                 <tr class="hover:bg-slate-50 border-b transition">
@@ -420,11 +421,11 @@ async function fetchRealtimeClassData() {
 
         const habitPct = sums.map(s => Math.round((s / total) * 100));
 
-        if (habitsChartInstance && habitsChartInstance.data && habitsChartInstance.data.datasets[0]) {
+        if (habitsChartInstance && habitsChartInstance.data && habitsChartInstance.data.datasets && habitsChartInstance.data.datasets[0]) {
             habitsChartInstance.data.datasets[0].data = habitPct;
             habitsChartInstance.update();
         }
-        if (categoryChartInstance && categoryChartInstance.data && categoryChartInstance.data.datasets[0]) {
+        if (categoryChartInstance && categoryChartInstance.data && categoryChartInstance.data.datasets && categoryChartInstance.data.datasets[0]) {
             categoryChartInstance.data.datasets[0].data = [st, mt, bt];
             categoryChartInstance.update();
         }
@@ -511,7 +512,7 @@ async function loadAdminExecutiveData() {
     }
 }
 
-function renderAdminChart(percentages) {
+function renderAdminChart(percentages = [0, 0, 0, 0, 0, 0, 0]) {
     const ctx = document.getElementById('adminOverviewChart');
     if (!ctx || !window.Chart) return;
 
