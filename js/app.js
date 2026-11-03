@@ -7,8 +7,10 @@
 const SUPABASE_URL = 'https://udgxelmebjzzwlumnbox.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkZ3hlbG1lYmp6endsdW1uYm94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NDIwMTksImV4cCI6MjEwOTAxODAxOX0.Q6m0XquxaKNhMlz7Ef03xHzu5Sbq3yE8WphpwZmVnhA';
 
-// Inisialisasi SDK Supabase
-const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// Inisialisasi SDK Supabase dengan Proteksi Browser
+const supabaseClient = (typeof window !== 'undefined' && window.supabase) 
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
+    : null;
 
 // Global Chart Instances
 let habitsChartInstance = null;
@@ -16,19 +18,21 @@ let categoryChartInstance = null;
 let adminChartInstance = null;
 
 // Inisialisasi Aplikasi Saat DOM Siap
-document.addEventListener('DOMContentLoaded', () => {
-    const today = new Date().toISOString().split('T')[0];
-    if (document.getElementById('add_entry_date')) document.getElementById('add_entry_date').value = today;
-    if (document.getElementById('student_input_date')) document.getElementById('student_input_date').value = today;
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const today = new Date().toISOString().split('T')[0];
+        if (document.getElementById('add_entry_date')) document.getElementById('add_entry_date').value = today;
+        if (document.getElementById('student_input_date')) document.getElementById('student_input_date').value = today;
 
-    // Muat Komponen Utama
-    loadHabitsTable();
-    initCharts();
-    fetchRealtimeClassData();
+        // Muat Komponen Utama
+        loadHabitsTable();
+        initCharts();
+        fetchRealtimeClassData();
 
-    // Jalankan Langganan Realtime WebSocket
-    subscribeToSupabaseRealtime();
-});
+        // Jalankan Langganan Realtime WebSocket
+        subscribeToSupabaseRealtime();
+    });
+}
 
 /**
  * ========================================================
@@ -66,6 +70,7 @@ async function loadHabitsTable() {
     tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">Memuat data Supabase...</td></tr>`;
 
     try {
+        if (!supabaseClient) return;
         const { data, error } = await supabaseClient
             .from('daily_habits')
             .select(`
@@ -84,7 +89,15 @@ async function loadHabitsTable() {
         }
 
         tbody.innerHTML = data.map(item => {
-            const habits = [item.bangun_pagi, item.beribadah, item.berolahraga, item.makan_sehat, item.gemar_belajar, item.bermasyarakat, item.tidur_cepat];
+            const habits = [
+                item.bangun_pagi, 
+                item.beribadah, 
+                item.berolahraga, 
+                item.makan_sehat, 
+                item.gemar_belajar, 
+                item.bermasyarakat, 
+                item.tidur_cepat
+            ];
             const completedCount = habits.filter(Boolean).length;
             const percentage = Math.round((completedCount / 7) * 100);
 
@@ -136,8 +149,14 @@ async function loadHabitsTable() {
  * 3. LOGIKA CRUD & MODAL HANDLERS
  * ========================================================
  */
-function openAddModal() { document.getElementById('addModal').classList.remove('hidden'); }
-function closeAddModal() { document.getElementById('addModal').classList.add('hidden'); }
+function openAddModal() { 
+    const el = document.getElementById('addModal');
+    if (el) el.classList.remove('hidden'); 
+}
+function closeAddModal() { 
+    const el = document.getElementById('addModal');
+    if (el) el.classList.add('hidden'); 
+}
 
 async function submitAddData(e) {
     e.preventDefault();
@@ -145,6 +164,7 @@ async function submitAddData(e) {
     if (btn) btn.disabled = true;
 
     try {
+        if (!supabaseClient) throw new Error("Supabase client belum terinisialisasi.");
         const user = (await supabaseClient.auth.getUser()).data?.user;
         const payload = {
             student_id: user ? user.id : '00000000-0000-0000-0000-000000000000',
@@ -185,9 +205,13 @@ function openEditModal(item) {
     document.getElementById('edit_val_parent').checked = item.validated_by_parent || false;
     document.getElementById('edit_val_teacher').checked = item.validated_by_teacher || false;
 
-    document.getElementById('editModal').classList.remove('hidden');
+    const el = document.getElementById('editModal');
+    if (el) el.classList.remove('hidden');
 }
-function closeEditModal() { document.getElementById('editModal').classList.add('hidden'); }
+function closeEditModal() { 
+    const el = document.getElementById('editModal');
+    if (el) el.classList.add('hidden'); 
+}
 
 async function submitEditData(e) {
     e.preventDefault();
@@ -196,6 +220,7 @@ async function submitEditData(e) {
     if (btn) btn.disabled = true;
 
     try {
+        if (!supabaseClient) throw new Error("Supabase client belum terinisialisasi.");
         const updated = {
             entry_date: document.getElementById('edit_entry_date').value,
             bangun_pagi: document.getElementById('edit_b1').checked,
@@ -224,9 +249,13 @@ async function submitEditData(e) {
 
 function openDeleteModal(id) {
     document.getElementById('delete_target_id').value = id;
-    document.getElementById('deleteModal').classList.remove('hidden');
+    const el = document.getElementById('deleteModal');
+    if (el) el.classList.remove('hidden');
 }
-function closeDeleteModal() { document.getElementById('deleteModal').classList.add('hidden'); }
+function closeDeleteModal() { 
+    const el = document.getElementById('deleteModal');
+    if (el) el.classList.add('hidden'); 
+}
 
 async function executeDeleteData() {
     const id = document.getElementById('delete_target_id').value;
@@ -234,6 +263,7 @@ async function executeDeleteData() {
     if (btn) btn.disabled = true;
 
     try {
+        if (!supabaseClient) throw new Error("Supabase client belum terinisialisasi.");
         const { error } = await supabaseClient.from('daily_habits').delete().eq('id', id);
         if (error) throw error;
 
@@ -247,8 +277,14 @@ async function executeDeleteData() {
     }
 }
 
-function openImportModal() { document.getElementById('importModal').classList.remove('hidden'); }
-function closeImportModal() { document.getElementById('importModal').classList.add('hidden'); }
+function openImportModal() { 
+    const el = document.getElementById('importModal');
+    if (el) el.classList.remove('hidden'); 
+}
+function closeImportModal() { 
+    const el = document.getElementById('importModal');
+    if (el) el.classList.add('hidden'); 
+}
 
 async function submitImportCSV(e) {
     e.preventDefault();
@@ -258,6 +294,7 @@ async function submitImportCSV(e) {
     const reader = new FileReader();
     reader.onload = async function(evt) {
         try {
+            if (!supabaseClient) throw new Error("Supabase client belum terinisialisasi.");
             const lines = evt.target.result.split('\n').map(l => l.trim()).filter(l => l.length > 0);
             const rows = [];
             for (let i = 1; i < lines.length; i++) {
@@ -305,7 +342,7 @@ async function submitMainFormLog() {
  */
 function initCharts() {
     const barEl = document.getElementById('habitsBarChart');
-    if (barEl) {
+    if (barEl && window.Chart) {
         const ctxBar = barEl.getContext('2d');
         habitsChartInstance = new window.Chart(ctxBar, {
             type: 'bar',
@@ -328,7 +365,7 @@ function initCharts() {
     }
 
     const pieEl = document.getElementById('categoryDoughnutChart');
-    if (pieEl) {
+    if (pieEl && window.Chart) {
         const ctxPie = pieEl.getContext('2d');
         categoryChartInstance = new window.Chart(ctxPie, {
             type: 'doughnut',
@@ -355,6 +392,7 @@ async function fetchRealtimeClassData() {
     if (badgeEl) badgeEl.innerText = selectedClass === 'ALL' ? 'Semua Kelas' : `Kelas ${selectedClass}`;
 
     try {
+        if (!supabaseClient) return;
         const { data, error } = await supabaseClient.from('daily_habits').select('*');
         if (error || !data || data.length === 0) return;
 
@@ -363,7 +401,15 @@ async function fetchRealtimeClassData() {
         let st = 0, mt = 0, bt = 0;
 
         data.forEach(item => {
-            const h = [item.bangun_pagi, item.beribadah, item.berolahraga, item.makan_sehat, item.gemar_belajar, item.bermasyarakat, item.tidur_cepat];
+            const h = [
+                item.bangun_pagi, 
+                item.beribadah, 
+                item.berolahraga, 
+                item.makan_sehat, 
+                item.gemar_belajar, 
+                item.bermasyarakat, 
+                item.tidur_cepat
+            ];
             h.forEach((val, idx) => { if (val) sums[idx]++; });
 
             const pct = (h.filter(Boolean).length / 7) * 100;
@@ -374,11 +420,11 @@ async function fetchRealtimeClassData() {
 
         const habitPct = sums.map(s => Math.round((s / total) * 100));
 
-        if (habitsChartInstance) {
+        if (habitsChartInstance && habitsChartInstance.data && habitsChartInstance.data.datasets[0]) {
             habitsChartInstance.data.datasets[0].data = habitPct;
             habitsChartInstance.update();
         }
-        if (categoryChartInstance) {
+        if (categoryChartInstance && categoryChartInstance.data && categoryChartInstance.data.datasets[0]) {
             categoryChartInstance.data.datasets[0].data = [st, mt, bt];
             categoryChartInstance.update();
         }
@@ -409,8 +455,22 @@ function subscribeToSupabaseRealtime() {
  */
 async function loadAdminExecutiveData() {
     try {
+        if (!supabaseClient) return;
         const { data, error } = await supabaseClient.from('daily_habits').select('*');
-        if (error || !data || data.length === 0) return;
+        
+        const totalLogsEl = document.getElementById('adminTotalLogs');
+        const avgScoreEl = document.getElementById('adminAvgScore');
+        const percentSTEl = document.getElementById('adminPercentST');
+        const parentValRateEl = document.getElementById('adminParentValRate');
+
+        if (error || !data || data.length === 0) {
+            if (totalLogsEl) totalLogsEl.innerText = '0';
+            if (avgScoreEl) avgScoreEl.innerText = '0%';
+            if (percentSTEl) percentSTEl.innerText = '0%';
+            if (parentValRateEl) parentValRateEl.innerText = '0%';
+            renderAdminChart([0, 0, 0, 0, 0, 0, 0]);
+            return;
+        }
 
         const totalLogs = data.length;
         let sumHabits = 0;
@@ -419,7 +479,15 @@ async function loadAdminExecutiveData() {
         const habitSums = [0, 0, 0, 0, 0, 0, 0];
 
         data.forEach(item => {
-            const habits = [item.bangun_pagi, item.beribadah, item.berolahraga, item.makan_sehat, item.gemar_belajar, item.bermasyarakat, item.tidur_cepat];
+            const habits = [
+                item.bangun_pagi, 
+                item.beribadah, 
+                item.berolahraga, 
+                item.makan_sehat, 
+                item.gemar_belajar, 
+                item.bermasyarakat, 
+                item.tidur_cepat
+            ];
             const completed = habits.filter(Boolean).length;
             
             sumHabits += completed;
@@ -430,11 +498,6 @@ async function loadAdminExecutiveData() {
         });
 
         // Update Kartu KPI Admin
-        const totalLogsEl = document.getElementById('adminTotalLogs');
-        const avgScoreEl = document.getElementById('adminAvgScore');
-        const percentSTEl = document.getElementById('adminPercentST');
-        const parentValRateEl = document.getElementById('adminParentValRate');
-
         if (totalLogsEl) totalLogsEl.innerText = totalLogs.toLocaleString('id-ID');
         if (avgScoreEl) avgScoreEl.innerText = Math.round((sumHabits / (totalLogs * 7)) * 100) + '%';
         if (percentSTEl) percentSTEl.innerText = Math.round((countST / totalLogs) * 100) + '%';
@@ -450,7 +513,7 @@ async function loadAdminExecutiveData() {
 
 function renderAdminChart(percentages) {
     const ctx = document.getElementById('adminOverviewChart');
-    if (!ctx) return;
+    if (!ctx || !window.Chart) return;
 
     if (adminChartInstance) adminChartInstance.destroy();
 
@@ -496,7 +559,7 @@ function printMonthlyReportPDF() {
         { name: '7. Tidur Cepat', rule: 'Istirahat berkualitas (Maks 21.00 WIB)' }
     ];
 
-    const currentData = (habitsChartInstance && habitsChartInstance.data.datasets[0]) 
+    const currentData = (habitsChartInstance && habitsChartInstance.data && habitsChartInstance.data.datasets && habitsChartInstance.data.datasets[0]) 
         ? habitsChartInstance.data.datasets[0].data 
         : [0, 0, 0, 0, 0, 0, 0];
 
