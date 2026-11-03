@@ -4,7 +4,6 @@
  */
 
 // Kredensial Supabase Project Anda (Ganti dengan Key Anda)
-const SUPABASE_URL = 'https://udgxelmebjzzwlumnbox.supabase.co/rest/v1/';
 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkZ3hlbG1lYmp6endsdW1uYm94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NDIwMTksImV4cCI6MjEwOTAxODAxOX0.Q6m0XquxaKNhMlz7Ef03xHzu5Sbq3yE8WphpwZmVnhA';
 
