@@ -4,7 +4,7 @@
  */
 
 // Kredensial Supabase Project Anda (Ganti dengan Key Anda)
-const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
+const SUPABASE_URL = 'https://udgxelmebjzzwlumnbox.supabase.co/rest/v1/';
 const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 // Inisialisasi Supabase Client SDK
